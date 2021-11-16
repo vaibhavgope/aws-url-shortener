@@ -2,7 +2,7 @@ const AWS = require('aws-sdk')
 const shortId = require('shortid')
 
 AWS.config.update({
-    region: 'us-east-2'
+    region: 'us-east-1'
 })
 
 const dynamodb = new AWS.DynamoDB.DocumentClient()
@@ -16,6 +16,7 @@ exports.handler = async function (event, context, callback) {
     let resp
     switch (true) {
         case event.httpMethod === 'GET' && event.path === healthPath:
+            console.log("working")
             resp = createResponse(200)
             break;
         case event.httpMethod === 'GET' && event.resource === redirectPath:
@@ -33,15 +34,19 @@ exports.handler = async function (event, context, callback) {
 }
 
 async function createShortPath(url) {
+
     const params = {
         TableName: dynamodbTableName,
-        Key: {
-            'longUrl': url
+        IndexName: 'longUrlIndex',
+        KeyConditionExpression: "longUrl = :longUrl",
+        ExpressionAttributeValues: {
+            ':longUrl': url
         }
     }
-    const found = await dynamodb.get(params)
-    if (found?.Item) {
-        return createResponse(200, found.Item)
+    const found = await dynamodb.query(params).promise()
+
+    if (found?.Items.length > 0) {
+        return createResponse(200, found.Items[0])
     } else {
         const shortCode = shortId.generate()
         const newItem = {

@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: API and lambda function for shortening urls
+Resources:
+  URLTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: URLTable
+      AttributeDefinitions:
+      - AttributeName: urlCode
+        AttributeType: S
+      - AttributeName: longUrl
+        AttributeType: S
+      KeySchema:
+      - AttributeName: urlCode
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+      - IndexName: longUrlIndex
+        KeySchema:
+        - AttributeName: longUrl
+          KeyType: HASH
+        Projection:
+          ProjectionType: ALL
+      BillingMode: PAY_PER_REQUEST
+      ProvisionedThroughput:
+        ReadCapacityUnits: 0
+        WriteCapacityUnits: 0
+  URLShortenerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: URLShortenerFunction
+      Handler: index.handler
+      Runtime: nodejs14.x
+      Policies:
+      - AWSLambdaDynamoDBExecutionRole
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: URLTable
+      Environment:
+        Variables:
+          awsDBName:
+            Ref: URLTable
+      Events:
+        URLShortener:
+          Type: Api
+          Properties:
+            Path: /shorten
+            Method: post
+        RedirectPath:
+          Type: Api
+          Properties:
+            Path: /{code}
+            Method: get
+        HealthPath:
+          Type: Api
+          Properties:
+            Path: /health
+            Method: get
+Outputs:
+  UrlShortenerApi:
+    Description: API Gateway endpoint URL for Prod stage for URL shortener function
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/staging/shorten/
+  URLShortenerFunction:
+    Description: URL shortener Lambda Function ARN
+    Value:
+      Fn::GetAtt:
+      - URLShortenerFunction
+      - Arn
+  URLShortenerFunctionIamRole:
+    Description: Implicit IAM Role created for URL shortener function
+    Value:
+      Fn::GetAtt:
+      - URLShortenerFunctionRole
+      - Arn
+  URLTableName:
+    Description: Name of URLs Table
+    Value:
+      Ref: URLTable
